@@ -1,0 +1,239 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import '../../../core/themes/aahar_theme.dart';
+import '../providers/onboarding_provider.dart';
+import '../widgets/progress_dots.dart';
+
+class OnboardingTargetsScreen extends ConsumerWidget {
+  const OnboardingTargetsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final profile = ref.watch(onboardingProvider);
+    final targets = profile.calculateTargets();
+
+    final kcal = targets['kcal']?.round() ?? 0;
+    final protein = targets['proteinG']?.round() ?? 0;
+    final carbs = targets['carbsG']?.round() ?? 0;
+    final fat = targets['fatG']?.round() ?? 0;
+    // Iron RDA: 18mg women, 8mg men (approximate)
+    final iron = profile.gender == 'female' ? 18 : 8;
+
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light,
+      child: Scaffold(
+        backgroundColor: AaharTheme.darkBg,
+        body: SafeArea(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                child: Center(child: OnboardingProgressDots(currentStep: 5)),
+              ),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 24),
+                child: Text(
+                  'Your daily targets',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 26,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 4),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 24),
+                child: Text(
+                  'Calculated from your body details and goal',
+                  style: TextStyle(color: Color(0xFF888888), fontSize: 14),
+                ),
+              ),
+              const SizedBox(height: 24),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 20),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF152A1E),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Column(
+                    children: [
+                      Text(
+                        _formatCalories(kcal),
+                        style: const TextStyle(
+                          color: AaharTheme.brandLime,
+                          fontSize: 48,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: -1,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'calories per day',
+                        style: TextStyle(color: Color(0xFF888888), fontSize: 14),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Based on the Harris-Benedict formula',
+                        style: TextStyle(color: Color(0xFF4A9EE0), fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: GridView.count(
+                  crossAxisCount: 2,
+                  mainAxisSpacing: 10,
+                  crossAxisSpacing: 10,
+                  childAspectRatio: 2.0,
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  children: [
+                    _MacroTile(
+                      value: '${protein}g',
+                      label: 'Protein',
+                      color: AaharTheme.nutrientProtein,
+                    ),
+                    _MacroTile(
+                      value: '${carbs}g',
+                      label: 'Carbs',
+                      color: AaharTheme.nutrientCarbs,
+                    ),
+                    _MacroTile(
+                      value: '${fat}g',
+                      label: 'Fat',
+                      color: AaharTheme.nutrientFat,
+                    ),
+                    _MacroTile(
+                      value: '${iron}mg',
+                      label: 'Iron',
+                      color: AaharTheme.nutrientIron,
+                    ),
+                  ],
+                ),
+              ),
+              const Spacer(),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 0, 24, 4),
+                child: Column(
+                  children: [
+                    SizedBox(
+                      width: double.infinity,
+                      height: 54,
+                      child: ElevatedButton(
+                        onPressed: () => _startTracking(context, ref),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AaharTheme.brandLime,
+                          foregroundColor: AaharTheme.darkBg,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              'Start tracking',
+                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                            ),
+                            SizedBox(width: 8),
+                            Icon(Icons.arrow_forward, size: 18),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: ElevatedButton(
+                        onPressed: () {},
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AaharTheme.darkSurface,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                        child: const Text(
+                          'Adjust manually',
+                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _startTracking(BuildContext context, WidgetRef ref) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('onboarding_complete', true);
+    if (context.mounted) context.go('/home/dashboard');
+  }
+
+  String _formatCalories(int kcal) {
+    if (kcal >= 1000) {
+      return '${(kcal ~/ 1000)},${(kcal % 1000).toString().padLeft(3, '0')}';
+    }
+    return '$kcal';
+  }
+}
+
+class _MacroTile extends StatelessWidget {
+  const _MacroTile({
+    required this.value,
+    required this.label,
+    required this.color,
+  });
+
+  final String value;
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: AaharTheme.darkSurface,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            value,
+            style: TextStyle(
+              color: color,
+              fontSize: 22,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          Text(
+            label,
+            style: const TextStyle(color: Color(0xFF888888), fontSize: 12),
+          ),
+        ],
+      ),
+    );
+  }
+}
