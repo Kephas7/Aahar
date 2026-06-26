@@ -12,6 +12,7 @@ class DarkTextField extends StatelessWidget {
     this.suffixText,
     this.keyboardType,
     this.obscureText = false,
+    this.enabled = true,
     this.inputFormatters,
   });
 
@@ -22,6 +23,7 @@ class DarkTextField extends StatelessWidget {
   final String? suffixText;
   final TextInputType? keyboardType;
   final bool obscureText;
+  final bool enabled;
   final List<TextInputFormatter>? inputFormatters;
 
   @override
@@ -30,6 +32,7 @@ class DarkTextField extends StatelessWidget {
       controller: controller,
       keyboardType: keyboardType,
       obscureText: obscureText,
+      enabled: enabled,
       inputFormatters: inputFormatters,
       style: const TextStyle(color: Colors.white, fontSize: 15),
       decoration: InputDecoration(

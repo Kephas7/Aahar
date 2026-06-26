@@ -47,6 +47,9 @@ dependencies:
   cloud_firestore: ^4.15.0
   firebase_storage: ^11.6.0
 
+  # Auth providers
+  google_sign_in: ^6.2.1
+
   # Local database (offline logging)
   sqflite: ^2.3.2
   path: ^1.9.0

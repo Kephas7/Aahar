@@ -1,7 +1,9 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 import '../../../core/themes/aahar_theme.dart';
 import '../widgets/dark_text_field.dart';
@@ -18,6 +20,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final _passwordController = TextEditingController();
   bool _agreedToTerms = false;
   bool _obscurePassword = true;
+  bool _isLoading = false;
+  String? _errorMessage;
 
   @override
   void dispose() {
@@ -25,6 +29,90 @@ class _SignUpScreenState extends State<SignUpScreen> {
     _passwordController.dispose();
     super.dispose();
   }
+
+  // ── Email / password sign up ───────────────────────────────────────────────
+
+  Future<void> _createAccount() async {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+
+    if (email.isEmpty || password.isEmpty) {
+      setState(() => _errorMessage = 'Please fill in your email and password.');
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      await FirebaseAuth.instance.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+      if (mounted) context.go('/onboarding/name');
+    } on FirebaseAuthException catch (e) {
+      setState(() => _errorMessage = _friendlyError(e.code));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  // ── Google sign up / sign in ───────────────────────────────────────────────
+
+  Future<void> _signInWithGoogle() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final googleUser = await GoogleSignIn().signIn();
+      if (googleUser == null) {
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      final googleAuth = await googleUser.authentication;
+      final credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      final result =
+          await FirebaseAuth.instance.signInWithCredential(credential);
+
+      if (!mounted) return;
+      // New Google user → onboarding; existing → straight to dashboard
+      if (result.additionalUserInfo?.isNewUser ?? true) {
+        context.go('/onboarding/name');
+      } else {
+        context.go('/home/dashboard');
+      }
+    } on FirebaseAuthException catch (e) {
+      setState(() => _errorMessage = _friendlyError(e.code));
+    } catch (_) {
+      // User cancelled the Google sign-in sheet
+      setState(() => _isLoading = false);
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  String _friendlyError(String code) => switch (code) {
+        'email-already-in-use' =>
+          'An account with this email already exists.',
+        'invalid-email' => 'Please enter a valid email address.',
+        'weak-password' => 'Password must be at least 6 characters.',
+        'network-request-failed' => 'No internet connection.',
+        'too-many-requests' => 'Too many attempts. Try again later.',
+        'operation-not-allowed' =>
+          'Email/password sign-in is not enabled. Enable it in the Firebase console under Authentication → Sign-in method.',
+        _ => 'Sign-up failed ($code). Please try again.',
+      };
+
+  // ── Build ──────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -40,7 +128,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 child: Align(
                   alignment: Alignment.centerLeft,
                   child: IconButton(
-                    onPressed: () => context.pop(),
+                    onPressed: _isLoading ? null : () => context.pop(),
                     icon: const Icon(Icons.arrow_back, color: Colors.white),
                   ),
                 ),
@@ -90,10 +178,15 @@ class _SignUpScreenState extends State<SignUpScreen> {
                             color: const Color(0xFF666666),
                             size: 20,
                           ),
-                          onPressed: () =>
-                              setState(() => _obscurePassword = !_obscurePassword),
+                          onPressed: () => setState(
+                              () => _obscurePassword = !_obscurePassword),
                         ),
                       ),
+                      // Error message
+                      if (_errorMessage != null) ...[
+                        const SizedBox(height: 12),
+                        _ErrorBanner(_errorMessage!),
+                      ],
                       const SizedBox(height: 20),
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -150,17 +243,20 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       const Row(
                         children: [
                           Expanded(
-                            child: Divider(color: Color(0xFF2A2A2A), thickness: 1),
+                            child: Divider(
+                                color: Color(0xFF2A2A2A), thickness: 1),
                           ),
                           Padding(
                             padding: EdgeInsets.symmetric(horizontal: 12),
                             child: Text(
                               'or sign up with',
-                              style: TextStyle(color: Color(0xFF666666), fontSize: 13),
+                              style: TextStyle(
+                                  color: Color(0xFF666666), fontSize: 13),
                             ),
                           ),
                           Expanded(
-                            child: Divider(color: Color(0xFF2A2A2A), thickness: 1),
+                            child: Divider(
+                                color: Color(0xFF2A2A2A), thickness: 1),
                           ),
                         ],
                       ),
@@ -170,16 +266,19 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           Expanded(
                             child: _SocialButton(
                               label: 'Google',
-                              icon: SvgPicture.string(_kGoogleSvg, width: 20, height: 20),
-                              onTap: () {},
+                              icon: SvgPicture.string(_kGoogleSvg,
+                                  width: 20, height: 20),
+                              onTap: _isLoading ? null : _signInWithGoogle,
                             ),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
                             child: _SocialButton(
                               label: 'Apple',
-                              icon: const Icon(Icons.apple, color: Colors.white, size: 22),
-                              onTap: () {},
+                              icon: const Icon(Icons.apple,
+                                  color: Colors.white, size: 22),
+                              // Apple sign-in requires iOS/macOS native setup
+                              onTap: null,
                             ),
                           ),
                         ],
@@ -197,8 +296,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       width: double.infinity,
                       height: 54,
                       child: ElevatedButton(
-                        onPressed: _agreedToTerms
-                            ? () => context.go('/onboarding/name')
+                        onPressed: (_agreedToTerms && !_isLoading)
+                            ? _createAccount
                             : null,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AaharTheme.brandLime,
@@ -209,25 +308,38 @@ class _SignUpScreenState extends State<SignUpScreen> {
                             borderRadius: BorderRadius.circular(14),
                           ),
                         ),
-                        child: const Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              'Create account',
-                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                            ),
-                            SizedBox(width: 8),
-                            Icon(Icons.arrow_forward, size: 18),
-                          ],
-                        ),
+                        child: _isLoading
+                            ? const SizedBox(
+                                width: 22,
+                                height: 22,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.5,
+                                  color: AaharTheme.darkBg,
+                                ),
+                              )
+                            : const Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    'Create account',
+                                    style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600),
+                                  ),
+                                  SizedBox(width: 8),
+                                  Icon(Icons.arrow_forward, size: 18),
+                                ],
+                              ),
                       ),
                     ),
                     TextButton(
-                      onPressed: () => context.go('/login'),
+                      onPressed:
+                          _isLoading ? null : () => context.go('/login'),
                       child: Text.rich(
                         TextSpan(
                           text: 'Already have an account? ',
-                          style: const TextStyle(color: Color(0xFF666666), fontSize: 14),
+                          style: const TextStyle(
+                              color: Color(0xFF666666), fontSize: 14),
                           children: [
                             const TextSpan(
                               text: 'Log in',
@@ -252,6 +364,39 @@ class _SignUpScreenState extends State<SignUpScreen> {
   }
 }
 
+// ── Shared sub-widgets ────────────────────────────────────────────────────────
+
+class _ErrorBanner extends StatelessWidget {
+  const _ErrorBanner(this.message);
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+      decoration: BoxDecoration(
+        color: const Color(0xFF2D1515),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFF5C2020)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.error_outline,
+              color: Color(0xFFE07070), size: 16),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style:
+                  const TextStyle(color: Color(0xFFE07070), fontSize: 13),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _SocialButton extends StatelessWidget {
   const _SocialButton({
     required this.label,
@@ -261,33 +406,36 @@ class _SocialButton extends StatelessWidget {
 
   final String label;
   final Widget icon;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        height: 50,
-        decoration: BoxDecoration(
-          color: AaharTheme.darkSurface,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFF2A2A2A)),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            icon,
-            const SizedBox(width: 8),
-            Text(
-              label,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 15,
-                fontWeight: FontWeight.w500,
+      child: Opacity(
+        opacity: onTap == null ? 0.4 : 1.0,
+        child: Container(
+          height: 50,
+          decoration: BoxDecoration(
+            color: AaharTheme.darkSurface,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFF2A2A2A)),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              icon,
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
