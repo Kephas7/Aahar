@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/themes/aahar_theme.dart';
 import '../data/nepali_foods.dart';
+import '../models/detected_food.dart';
 import '../models/food_item.dart';
 
 class LogMealScreen extends StatefulWidget {
@@ -180,7 +181,13 @@ class _LogMealScreenState extends State<LogMealScreen> {
   }
 
   void _goToPortionScreen(FoodItem food) {
-    context.push('/log/portion', extra: [food]);
+    final detected = DetectedFood(
+      foodItem: food,
+      confidencePercent: 100,
+      defaultQuantity: food.defaultQuantity,
+      isSelected: true,
+    );
+    context.push('/log/portion', extra: [detected]);
   }
 }
 

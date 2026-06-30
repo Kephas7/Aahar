@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -5,6 +6,8 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../models/user_profile.dart';
 
 import '../../../core/themes/aahar_theme.dart';
 import '../widgets/dark_text_field.dart';
@@ -128,7 +131,43 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _navigateAfterLogin() async {
     final prefs = await SharedPreferences.getInstance();
-    final onboardingDone = prefs.getBool('onboarding_complete') ?? false;
+    bool onboardingDone = prefs.getBool('onboarding_complete') ?? false;
+
+    // SharedPreferences are device-local. If the user completed onboarding on
+    // a previous install / device, pull their profile from Firestore and
+    // repopulate local targets so they go straight to the dashboard.
+    if (!onboardingDone) {
+      try {
+        final uid = FirebaseAuth.instance.currentUser?.uid;
+        if (uid != null) {
+          final doc = await FirebaseFirestore.instance
+              .collection('users')
+              .doc(uid)
+              .collection('profile')
+              .doc('details')
+              .get()
+              .timeout(const Duration(seconds: 5));
+
+          if (doc.exists && doc.data() != null) {
+            final profile = UserProfile.fromMap(doc.data()!);
+            final targets = profile.calculateTargets();
+            await Future.wait([
+              prefs.setBool('onboarding_complete', true),
+              prefs.setString('user_name', profile.name),
+              prefs.setInt('target_kcal', targets['kcal']?.round() ?? 2000),
+              prefs.setInt(
+                  'target_protein', targets['proteinG']?.round() ?? 50),
+              prefs.setInt('target_carbs', targets['carbsG']?.round() ?? 250),
+              prefs.setInt('target_fat', targets['fatG']?.round() ?? 65),
+            ]);
+            onboardingDone = true;
+          }
+        }
+      } catch (_) {
+        // Network error or Firestore not set up — fall through to onboarding.
+      }
+    }
+
     if (!mounted) return;
     context.go(onboardingDone ? '/home/dashboard' : '/onboarding/name');
   }

@@ -30,25 +30,30 @@ class _AdjustPortionScreenState extends State<AdjustPortionScreen> {
     _availableUnits = _primary.availableUnits;
   }
 
-  double get _totalKcal => widget.foods.fold(
-        0.0,
-        (s, f) => s + f.foodItem.kcalFor(_quantity, _unit),
-      );
+  // Primary food is adjustable; secondary foods stay at their detected defaults.
+  double get _totalKcal => _primary.kcalFor(_quantity, _unit) +
+      widget.foods.skip(1).fold(
+            0.0,
+            (s, f) => s + f.foodItem.kcalFor(f.defaultQuantity, f.foodItem.defaultUnit),
+          );
 
-  double get _totalProtein => widget.foods.fold(
-        0.0,
-        (s, f) => s + f.foodItem.proteinFor(_quantity, _unit),
-      );
+  double get _totalProtein => _primary.proteinFor(_quantity, _unit) +
+      widget.foods.skip(1).fold(
+            0.0,
+            (s, f) => s + f.foodItem.proteinFor(f.defaultQuantity, f.foodItem.defaultUnit),
+          );
 
-  double get _totalCarbs => widget.foods.fold(
-        0.0,
-        (s, f) => s + f.foodItem.carbsFor(_quantity, _unit),
-      );
+  double get _totalCarbs => _primary.carbsFor(_quantity, _unit) +
+      widget.foods.skip(1).fold(
+            0.0,
+            (s, f) => s + f.foodItem.carbsFor(f.defaultQuantity, f.foodItem.defaultUnit),
+          );
 
-  double get _totalFat => widget.foods.fold(
-        0.0,
-        (s, f) => s + f.foodItem.fatFor(_quantity, _unit),
-      );
+  double get _totalFat => _primary.fatFor(_quantity, _unit) +
+      widget.foods.skip(1).fold(
+            0.0,
+            (s, f) => s + f.foodItem.fatFor(f.defaultQuantity, f.foodItem.defaultUnit),
+          );
 
   String get _foodLabel {
     if (widget.foods.length == 1) return _primary.name;

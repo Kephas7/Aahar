@@ -77,7 +77,14 @@ class TodayLogNotifier extends StateNotifier<List<FoodLogEntry>> {
         .whereType<FoodLogEntry>()
         .toList();
 
-    state = restored;
+    // Only restore entries logged today
+    final today = DateTime.now();
+    state = restored
+        .where((e) =>
+            e.loggedAt.year == today.year &&
+            e.loggedAt.month == today.month &&
+            e.loggedAt.day == today.day)
+        .toList();
   }
 
   Future<void> _persist(List<FoodLogEntry> entries) async {
