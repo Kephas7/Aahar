@@ -2,6 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../features/dashboard/screens/dashboard_screen.dart';
+import '../features/log/models/detected_food.dart';
+import '../features/log/models/food_log_entry.dart';
+import '../features/log/screens/adjust_portion_screen.dart';
+import '../features/log/screens/camera_screen.dart';
+import '../features/log/screens/food_detected_screen.dart';
+import '../features/log/screens/log_meal_screen.dart';
+import '../features/log/screens/meal_logged_screen.dart';
 import '../features/onboarding/screens/login_screen.dart';
 import '../features/onboarding/screens/onboarding_body_screen.dart';
 import '../features/onboarding/screens/onboarding_goal_screen.dart';
@@ -26,6 +34,7 @@ final GoRouter appRouter = GoRouter(
     return null;
   },
   routes: [
+    // ── Auth & onboarding ────────────────────────────────────────────────────
     GoRoute(
       path: '/splash',
       builder: (context, state) => const WelcomeScreen(),
@@ -58,6 +67,39 @@ final GoRouter appRouter = GoRouter(
       path: '/onboarding/targets',
       builder: (context, state) => const OnboardingTargetsScreen(),
     ),
+
+    // ── Food log flow (full-screen, no bottom nav) ────────────────────────────
+    GoRoute(
+      path: '/log',
+      builder: (context, state) => const LogMealScreen(),
+    ),
+    GoRoute(
+      path: '/log/camera',
+      builder: (context, state) => const CameraScreen(),
+    ),
+    GoRoute(
+      path: '/log/detected',
+      builder: (context, state) {
+        final foods = state.extra as List<DetectedFood>;
+        return FoodDetectedScreen(detectedFoods: foods);
+      },
+    ),
+    GoRoute(
+      path: '/log/portion',
+      builder: (context, state) {
+        final foods = state.extra as List<DetectedFood>;
+        return AdjustPortionScreen(foods: foods);
+      },
+    ),
+    GoRoute(
+      path: '/log/success',
+      builder: (context, state) {
+        final entry = state.extra as FoodLogEntry;
+        return MealLoggedScreen(entry: entry);
+      },
+    ),
+
+    // ── Main app shell (4-tab nav) ───────────────────────────────────────────
     GoRoute(path: '/home', redirect: (context, state) => '/home/dashboard'),
     StatefulShellRoute.indexedStack(
       builder: (context, state, navigationShell) => ScaffoldWithNavBar(
@@ -70,14 +112,6 @@ final GoRouter appRouter = GoRouter(
             GoRoute(
               path: '/home/dashboard',
               builder: (context, state) => const DashboardScreen(),
-            ),
-          ],
-        ),
-        StatefulShellBranch(
-          routes: [
-            GoRoute(
-              path: '/home/log',
-              builder: (context, state) => const LogScreen(),
             ),
           ],
         ),
@@ -110,6 +144,8 @@ final GoRouter appRouter = GoRouter(
   ],
 );
 
+// ── Bottom nav shell ──────────────────────────────────────────────────────────
+
 class ScaffoldWithNavBar extends StatelessWidget {
   const ScaffoldWithNavBar({
     super.key,
@@ -135,7 +171,8 @@ class ScaffoldWithNavBar extends StatelessWidget {
       bottomNavigationBar: Container(
         decoration: const BoxDecoration(
           color: Color(0xFF0F0F0F),
-          border: Border(top: BorderSide(width: 0.5, color: Color(0xFF2A2A2A))),
+          border:
+              Border(top: BorderSide(width: 0.5, color: Color(0xFF2A2A2A))),
         ),
         child: BottomNavigationBar(
           type: BottomNavigationBarType.fixed,
@@ -147,11 +184,26 @@ class ScaffoldWithNavBar extends StatelessWidget {
           showSelectedLabels: true,
           showUnselectedLabels: true,
           items: const [
-            BottomNavigationBarItem(icon: Icon(Icons.home_outlined), label: 'Home'),
-            BottomNavigationBarItem(icon: Icon(Icons.add_circle_outline), label: 'Log'),
-            BottomNavigationBarItem(icon: Icon(Icons.restaurant_menu_outlined), label: 'Plan'),
-            BottomNavigationBarItem(icon: Icon(Icons.bar_chart_outlined), label: 'Progress'),
-            BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: 'Profile'),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.home_outlined),
+              activeIcon: Icon(Icons.home),
+              label: 'Home',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.event_note_outlined),
+              activeIcon: Icon(Icons.event_note),
+              label: 'Plan',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.bar_chart_outlined),
+              activeIcon: Icon(Icons.bar_chart),
+              label: 'Progress',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.person_outline),
+              activeIcon: Icon(Icons.person),
+              label: 'Profile',
+            ),
           ],
         ),
       ),
@@ -159,21 +211,7 @@ class ScaffoldWithNavBar extends StatelessWidget {
   }
 }
 
-// ── Placeholder screens (to be replaced one by one) ──────────────────────────
-
-class DashboardScreen extends StatelessWidget {
-  const DashboardScreen({super.key});
-  @override
-  Widget build(BuildContext context) =>
-      const _PlaceholderScreen(title: 'Dashboard');
-}
-
-class LogScreen extends StatelessWidget {
-  const LogScreen({super.key});
-  @override
-  Widget build(BuildContext context) =>
-      const _PlaceholderScreen(title: 'Food Log');
-}
+// ── Placeholder screens ───────────────────────────────────────────────────────
 
 class PlanScreen extends StatelessWidget {
   const PlanScreen({super.key});

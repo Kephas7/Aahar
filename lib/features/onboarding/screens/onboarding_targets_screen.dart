@@ -184,8 +184,25 @@ class OnboardingTargetsScreen extends ConsumerWidget {
   }
 
   Future<void> _startTracking(BuildContext context, WidgetRef ref) async {
+    final profile = ref.read(onboardingProvider);
+    final targets = profile.calculateTargets();
+
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('onboarding_complete', true);
+    await Future.wait([
+      prefs.setBool('onboarding_complete', true),
+      prefs.setString('user_name', profile.name),
+      prefs.setInt('target_kcal', targets['kcal']?.round() ?? 2000),
+      prefs.setInt('target_protein', targets['proteinG']?.round() ?? 50),
+      prefs.setInt('target_carbs', targets['carbsG']?.round() ?? 250),
+      prefs.setInt('target_fat', targets['fatG']?.round() ?? 65),
+    ]);
+
+    try {
+      await ref.read(onboardingProvider.notifier).saveToFirebase();
+    } catch (_) {
+      // Non-fatal: proceed even if Firestore save fails
+    }
+
     if (context.mounted) context.go('/home/dashboard');
   }
 
