@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -32,25 +35,82 @@ final userTargetsProvider = FutureProvider<UserTargets>((ref) async {
   );
 });
 
-// ── Today's food log (in-memory, resets on restart) ──────────────────────────
+// ── Today's food log (persisted locally) ─────────────────────────────────────
 
 class TodayLogNotifier extends StateNotifier<List<FoodLogEntry>> {
-  TodayLogNotifier() : super([]);
+  TodayLogNotifier() : super([]) {
+    _initialize();
+  }
 
-  void add(FoodLogEntry entry) => state = [...state, entry];
+  static const _storageKey = 'today_food_log_entries';
 
-  void remove(String id) =>
-      state = state.where((e) => e.id != id).toList();
+  Future<void> _initialized = Future.value();
+  Future<void> _queue = Future.value();
+
+  void _initialize() {
+    _initialized = _restore();
+  }
+
+  void _enqueue(Future<void> Function() action) {
+    _queue = _queue.then((_) async {
+      await _initialized;
+      await action();
+    });
+    unawaited(_queue);
+  }
+
+  Future<void> _restore() async {
+    final prefs = await SharedPreferences.getInstance();
+    final encoded = prefs.getStringList(_storageKey) ?? const [];
+    final restored = encoded
+        .map((value) {
+          try {
+            final decoded = jsonDecode(value);
+            if (decoded is Map<String, dynamic>) {
+              return FoodLogEntry.fromJson(decoded);
+            }
+          } catch (_) {
+            return null;
+          }
+          return null;
+        })
+        .whereType<FoodLogEntry>()
+        .toList();
+
+    state = restored;
+  }
+
+  Future<void> _persist(List<FoodLogEntry> entries) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(
+      _storageKey,
+      entries.map((entry) => jsonEncode(entry.toJson())).toList(),
+    );
+  }
+
+  void add(FoodLogEntry entry) => _enqueue(() async {
+    state = [...state, entry];
+    await _persist(state);
+  });
+
+  void remove(String id) => _enqueue(() async {
+    state = state.where((e) => e.id != id).toList();
+    await _persist(state);
+  });
 
   void undoLast() {
-    if (state.isNotEmpty) state = state.sublist(0, state.length - 1);
+    _enqueue(() async {
+      if (state.isEmpty) return;
+      state = state.sublist(0, state.length - 1);
+      await _persist(state);
+    });
   }
 }
 
 final todayLogProvider =
     StateNotifierProvider<TodayLogNotifier, List<FoodLogEntry>>(
-  (ref) => TodayLogNotifier(),
-);
+      (ref) => TodayLogNotifier(),
+    );
 
 // ── Computed totals ───────────────────────────────────────────────────────────
 

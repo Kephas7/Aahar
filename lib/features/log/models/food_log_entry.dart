@@ -23,6 +23,34 @@ class FoodLogEntry {
   final DateTime loggedAt;
   final String mealType; // 'Breakfast', 'Lunch', 'Snack', 'Dinner'
 
+  Map<String, Object?> toJson() => {
+    'id': id,
+    'foodName': foodName,
+    'quantity': quantity,
+    'unit': unit,
+    'kcal': kcal,
+    'proteinG': proteinG,
+    'carbsG': carbsG,
+    'fatG': fatG,
+    'loggedAt': loggedAt.toIso8601String(),
+    'mealType': mealType,
+  };
+
+  static FoodLogEntry fromJson(Map<String, dynamic> json) {
+    return FoodLogEntry(
+      id: json['id'] as String,
+      foodName: json['foodName'] as String,
+      quantity: (json['quantity'] as num).toDouble(),
+      unit: json['unit'] as String,
+      kcal: (json['kcal'] as num).toDouble(),
+      proteinG: (json['proteinG'] as num).toDouble(),
+      carbsG: (json['carbsG'] as num).toDouble(),
+      fatG: (json['fatG'] as num).toDouble(),
+      loggedAt: DateTime.parse(json['loggedAt'] as String),
+      mealType: json['mealType'] as String,
+    );
+  }
+
   String get timeLabel {
     final h = loggedAt.hour;
     final m = loggedAt.minute.toString().padLeft(2, '0');
