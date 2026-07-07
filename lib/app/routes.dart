@@ -4,6 +4,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../features/dashboard/screens/dashboard_screen.dart';
 import '../features/log/models/detected_food.dart';
+import '../features/profile/screens/edit_profile_screen.dart';
+import '../features/profile/screens/profile_screen.dart';
 import '../features/log/models/food_log_entry.dart';
 import '../features/log/screens/adjust_portion_screen.dart';
 import '../features/log/screens/camera_screen.dart';
@@ -97,6 +99,12 @@ final GoRouter appRouter = GoRouter(
         final entry = state.extra as FoodLogEntry;
         return MealLoggedScreen(entry: entry);
       },
+    ),
+
+    // ── Profile edit (full-screen, no bottom nav) ────────────────────────────
+    GoRoute(
+      path: '/home/profile/edit',
+      builder: (context, state) => const EditProfileScreen(),
     ),
 
     // ── Main app shell (4-tab nav) ───────────────────────────────────────────
@@ -225,13 +233,6 @@ class ProgressScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) =>
       const _PlaceholderScreen(title: 'Progress');
-}
-
-class ProfileScreen extends StatelessWidget {
-  const ProfileScreen({super.key});
-  @override
-  Widget build(BuildContext context) =>
-      const _PlaceholderScreen(title: 'Profile');
 }
 
 class _PlaceholderScreen extends StatelessWidget {
