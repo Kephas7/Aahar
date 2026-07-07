@@ -51,6 +51,35 @@ class FoodLogEntry {
     );
   }
 
+  // ── SQLite serialisation ────────────────────────────────────────────────────
+
+  Map<String, dynamic> toDbMap() => {
+        'id': id,
+        'food_name': foodName,
+        'quantity': quantity,
+        'unit': unit,
+        'kcal': kcal,
+        'protein_g': proteinG,
+        'carbs_g': carbsG,
+        'fat_g': fatG,
+        'logged_at': loggedAt.millisecondsSinceEpoch,
+        'meal_type': mealType,
+      };
+
+  static FoodLogEntry fromDbMap(Map<String, dynamic> map) => FoodLogEntry(
+        id: map['id'] as String,
+        foodName: map['food_name'] as String,
+        quantity: (map['quantity'] as num).toDouble(),
+        unit: map['unit'] as String,
+        kcal: (map['kcal'] as num).toDouble(),
+        proteinG: (map['protein_g'] as num).toDouble(),
+        carbsG: (map['carbs_g'] as num).toDouble(),
+        fatG: (map['fat_g'] as num).toDouble(),
+        loggedAt:
+            DateTime.fromMillisecondsSinceEpoch(map['logged_at'] as int),
+        mealType: map['meal_type'] as String,
+      );
+
   String get timeLabel {
     final h = loggedAt.hour;
     final m = loggedAt.minute.toString().padLeft(2, '0');
