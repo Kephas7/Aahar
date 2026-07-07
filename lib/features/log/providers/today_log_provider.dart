@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../services/local_db/meal_log_database.dart';
 import '../models/food_log_entry.dart';
 
 // ── User targets (loaded once from SharedPrefs) ───────────────────────────────
@@ -35,14 +36,12 @@ final userTargetsProvider = FutureProvider<UserTargets>((ref) async {
   );
 });
 
-// ── Today's food log (persisted locally) ─────────────────────────────────────
+// ── Today's food log (persisted to SQLite) ────────────────────────────────────
 
 class TodayLogNotifier extends StateNotifier<List<FoodLogEntry>> {
   TodayLogNotifier() : super([]) {
     _initialize();
   }
-
-  static const _storageKey = 'today_food_log_entries';
 
   Future<void> _initialized = Future.value();
   Future<void> _queue = Future.value();
@@ -60,79 +59,88 @@ class TodayLogNotifier extends StateNotifier<List<FoodLogEntry>> {
   }
 
   Future<void> _restore() async {
-    final prefs = await SharedPreferences.getInstance();
-    final encoded = prefs.getStringList(_storageKey) ?? const [];
-    final restored = encoded
-        .map((value) {
-          try {
-            final decoded = jsonDecode(value);
-            if (decoded is Map<String, dynamic>) {
-              return FoodLogEntry.fromJson(decoded);
-            }
-          } catch (_) {
-            return null;
-          }
-          return null;
-        })
-        .whereType<FoodLogEntry>()
-        .toList();
-
-    // Only restore entries logged today
-    final today = DateTime.now();
-    state = restored
-        .where((e) =>
-            e.loggedAt.year == today.year &&
-            e.loggedAt.month == today.month &&
-            e.loggedAt.day == today.day)
-        .toList();
+    await _migrateFromSharedPrefs();
+    state = await MealLogDatabaseService.instance
+        .getEntriesForDate(DateTime.now());
   }
 
-  Future<void> _persist(List<FoodLogEntry> entries) async {
+  // One-time migration: if the old SharedPreferences key exists and SQLite
+  // has no entries yet for today, copy them across then delete the key.
+  Future<void> _migrateFromSharedPrefs() async {
+    const legacyKey = 'today_food_log_entries';
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList(
-      _storageKey,
-      entries.map((entry) => jsonEncode(entry.toJson())).toList(),
-    );
+    final encoded = prefs.getStringList(legacyKey);
+    if (encoded == null || encoded.isEmpty) return;
+
+    final existing = await MealLogDatabaseService.instance
+        .getEntriesForDate(DateTime.now());
+    if (existing.isNotEmpty) {
+      // SQLite already has data — just drop the stale key.
+      await prefs.remove(legacyKey);
+      return;
+    }
+
+    for (final raw in encoded) {
+      try {
+        final decoded = jsonDecode(raw);
+        if (decoded is Map<String, dynamic>) {
+          await MealLogDatabaseService.instance
+              .insertEntry(FoodLogEntry.fromJson(decoded));
+        }
+      } catch (_) {}
+    }
+    await prefs.remove(legacyKey);
   }
 
   void add(FoodLogEntry entry) => _enqueue(() async {
-    state = [...state, entry];
-    await _persist(state);
-  });
+        await MealLogDatabaseService.instance.insertEntry(entry);
+        state = [...state, entry];
+      });
 
   void remove(String id) => _enqueue(() async {
-    state = state.where((e) => e.id != id).toList();
-    await _persist(state);
-  });
+        await MealLogDatabaseService.instance.deleteEntry(id);
+        state = state.where((e) => e.id != id).toList();
+      });
+
+  void update(FoodLogEntry entry) => _enqueue(() async {
+        await MealLogDatabaseService.instance.updateEntry(entry);
+        state = [for (final e in state) if (e.id == entry.id) entry else e];
+      });
 
   void undoLast() {
     _enqueue(() async {
       if (state.isEmpty) return;
+      final last = state.last;
+      await MealLogDatabaseService.instance.deleteEntry(last.id);
       state = state.sublist(0, state.length - 1);
-      await _persist(state);
     });
   }
 }
 
 final todayLogProvider =
     StateNotifierProvider<TodayLogNotifier, List<FoodLogEntry>>(
-      (ref) => TodayLogNotifier(),
-    );
+  (ref) => TodayLogNotifier(),
+);
 
 // ── Computed totals ───────────────────────────────────────────────────────────
 
-final todayKcalProvider = Provider<double>((ref) {
-  return ref.watch(todayLogProvider).fold(0.0, (s, e) => s + e.kcal);
-});
+final todayKcalProvider = Provider<double>(
+    (ref) => ref.watch(todayLogProvider).fold(0.0, (s, e) => s + e.kcal));
 
-final todayProteinProvider = Provider<double>((ref) {
-  return ref.watch(todayLogProvider).fold(0.0, (s, e) => s + e.proteinG);
-});
+final todayProteinProvider = Provider<double>(
+    (ref) => ref.watch(todayLogProvider).fold(0.0, (s, e) => s + e.proteinG));
 
-final todayCarbsProvider = Provider<double>((ref) {
-  return ref.watch(todayLogProvider).fold(0.0, (s, e) => s + e.carbsG);
-});
+final todayCarbsProvider = Provider<double>(
+    (ref) => ref.watch(todayLogProvider).fold(0.0, (s, e) => s + e.carbsG));
 
-final todayFatProvider = Provider<double>((ref) {
-  return ref.watch(todayLogProvider).fold(0.0, (s, e) => s + e.fatG);
+final todayFatProvider = Provider<double>(
+    (ref) => ref.watch(todayLogProvider).fold(0.0, (s, e) => s + e.fatG));
+
+// ── Historical queries (for Progress screen) ─────────────────────────────────
+
+/// Returns all log entries for the last [days] calendar days (today included).
+/// Usage: ref.watch(weeklyLogsProvider(7))
+final weeklyLogsProvider =
+    FutureProvider.family<List<FoodLogEntry>, int>((ref, days) {
+  return MealLogDatabaseService.instance.getEntriesForLastNDays(days);
 });
