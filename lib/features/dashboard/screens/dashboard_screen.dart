@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/themes/aahar_theme.dart';
+import '../../log/data/nepali_foods.dart';
+import '../../log/models/food_item.dart';
 import '../../log/models/food_log_entry.dart';
 import '../../log/providers/today_log_provider.dart';
 
@@ -445,52 +447,58 @@ class _MacroRing extends StatelessWidget {
 
 // ── Log entry tile ────────────────────────────────────────────────────────────
 
-class _LogEntryTile extends ConsumerWidget {
+class _LogEntryTile extends StatelessWidget {
   const _LogEntryTile({required this.entry});
   final FoodLogEntry entry;
 
+  void _openSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => _EditEntrySheet(entry: entry),
+    );
+  }
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        color: AaharTheme.darkSurface,
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '${entry.mealType} · ${entry.foodName}',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w500,
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => _openSheet(context),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: AaharTheme.darkSurface,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${entry.mealType} · ${entry.foodName}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  '${entry.kcal.round()} kcal · ${entry.portionLabel} · ${entry.timeLabel}',
-                  style: const TextStyle(
-                    color: Color(0xFF666666),
-                    fontSize: 13,
+                  const SizedBox(height: 3),
+                  Text(
+                    '${entry.kcal.round()} kcal · ${entry.portionLabel} · ${entry.timeLabel}',
+                    style: const TextStyle(
+                      color: Color(0xFF666666),
+                      fontSize: 13,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-          GestureDetector(
-            onTap: () {
-              ref.read(todayLogProvider.notifier).remove(entry.id);
-            },
-            child: const Icon(Icons.edit_outlined,
-                color: Color(0xFF555555), size: 18),
-          ),
-        ],
+            const Icon(Icons.edit_outlined, color: Color(0xFF555555), size: 18),
+          ],
+        ),
       ),
     );
   }
@@ -542,6 +550,327 @@ class _InsightChip extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+// ── Edit entry bottom sheet ───────────────────────────────────────────────────
+
+class _EditEntrySheet extends ConsumerStatefulWidget {
+  const _EditEntrySheet({required this.entry});
+  final FoodLogEntry entry;
+
+  @override
+  ConsumerState<_EditEntrySheet> createState() => _EditEntrySheetState();
+}
+
+class _EditEntrySheetState extends ConsumerState<_EditEntrySheet> {
+  late double _quantity;
+  late String _unit;
+  FoodItem? _food;
+  late List<String> _units;
+
+  @override
+  void initState() {
+    super.initState();
+    _quantity = widget.entry.quantity;
+    _unit = widget.entry.unit;
+    // Try exact name match — compound meals (e.g. "Dal bhat + Achar") won't match.
+    try {
+      _food = kNepaliFoods.firstWhere((f) => f.name == widget.entry.foodName);
+      _units = _food!.availableUnits;
+    } catch (_) {
+      _food = null;
+      _units = [_unit];
+    }
+  }
+
+  // Step size: coarser for named portions, finer for raw grams/ml.
+  double get _step => (_unit == 'grams' || _unit == 'ml') ? 25 : 1;
+
+  // Nutrition at current quantity/unit.
+  // If no FoodItem found (compound meal) scale the original values proportionally.
+  double _scale(double original) {
+    if (widget.entry.quantity <= 0) return original;
+    return original * (_quantity / widget.entry.quantity);
+  }
+
+  double get _kcal =>
+      _food != null ? _food!.kcalFor(_quantity, _unit) : _scale(widget.entry.kcal);
+  double get _protein =>
+      _food != null ? _food!.proteinFor(_quantity, _unit) : _scale(widget.entry.proteinG);
+  double get _carbs =>
+      _food != null ? _food!.carbsFor(_quantity, _unit) : _scale(widget.entry.carbsG);
+  double get _fat =>
+      _food != null ? _food!.fatFor(_quantity, _unit) : _scale(widget.entry.fatG);
+
+  String _fmt(double v) =>
+      v == v.roundToDouble() ? v.toInt().toString() : v.toStringAsFixed(1);
+
+  void _save() {
+    final updated = FoodLogEntry(
+      id: widget.entry.id,
+      foodName: widget.entry.foodName,
+      quantity: _quantity,
+      unit: _unit,
+      kcal: _kcal,
+      proteinG: _protein,
+      carbsG: _carbs,
+      fatG: _fat,
+      loggedAt: widget.entry.loggedAt,
+      mealType: widget.entry.mealType,
+    );
+    ref.read(todayLogProvider.notifier).update(updated);
+    Navigator.of(context).pop();
+  }
+
+  void _delete() {
+    ref.read(todayLogProvider.notifier).remove(widget.entry.id);
+    Navigator.of(context).pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      // Keep sheet above keyboard if it appears.
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: Container(
+        decoration: const BoxDecoration(
+          color: Color(0xFF1A1A1A),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ── Drag handle ─────────────────────────────────────────────────
+            Center(
+              child: Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF3A3A3A),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // ── Food name + meal context ─────────────────────────────────────
+            Text(
+              widget.entry.foodName,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              '${widget.entry.mealType} · ${widget.entry.timeLabel}',
+              style: const TextStyle(color: Color(0xFF666666), fontSize: 13),
+            ),
+            const SizedBox(height: 20),
+
+            // ── Unit chips (hidden when only one unit) ───────────────────────
+            if (_units.length > 1) ...[
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    for (final u in _units)
+                      GestureDetector(
+                        onTap: () => setState(() => _unit = u),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 150),
+                          margin: const EdgeInsets.only(right: 8),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: u == _unit
+                                ? AaharTheme.brandLime
+                                : const Color(0xFF2A2A2A),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            u,
+                            style: TextStyle(
+                              color: u == _unit
+                                  ? AaharTheme.darkBg
+                                  : Colors.white,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+
+            // ── Quantity stepper ─────────────────────────────────────────────
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _StepBtn(
+                  icon: Icons.remove,
+                  onTap: () {
+                    final next = _quantity - _step;
+                    if (next >= _step) setState(() => _quantity = next);
+                  },
+                ),
+                const SizedBox(width: 24),
+                Text(
+                  '${_fmt(_quantity)} $_unit',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(width: 24),
+                _StepBtn(
+                  icon: Icons.add,
+                  onTap: () => setState(() => _quantity += _step),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            // ── Live nutrition row ───────────────────────────────────────────
+            Container(
+              width: double.infinity,
+              padding:
+                  const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0F0F0F),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  _NutriBadge(
+                      label: 'kcal', value: _kcal.round().toString()),
+                  _NutriBadge(
+                      label: 'Protein',
+                      value: '${_protein.round()}g',
+                      color: AaharTheme.nutrientProtein),
+                  _NutriBadge(
+                      label: 'Carbs',
+                      value: '${_carbs.round()}g',
+                      color: AaharTheme.nutrientCarbs),
+                  _NutriBadge(
+                      label: 'Fat',
+                      value: '${_fat.round()}g',
+                      color: AaharTheme.nutrientFat),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // ── Actions ──────────────────────────────────────────────────────
+            Row(
+              children: [
+                Expanded(
+                  flex: 2,
+                  child: SizedBox(
+                    height: 50,
+                    child: OutlinedButton.icon(
+                      onPressed: _delete,
+                      icon: const Icon(Icons.delete_outline, size: 17),
+                      label: const Text('Delete'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFFFF5555),
+                        backgroundColor: const Color(0xFF2A0F0F),
+                        side: const BorderSide(color: Color(0xFF4A1A1A)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  flex: 3,
+                  child: SizedBox(
+                    height: 50,
+                    child: ElevatedButton(
+                      onPressed: _save,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AaharTheme.brandLime,
+                        foregroundColor: AaharTheme.darkBg,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text(
+                        'Save changes',
+                        style: TextStyle(
+                            fontSize: 15, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StepBtn extends StatelessWidget {
+  const _StepBtn({required this.icon, required this.onTap});
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 44,
+        height: 44,
+        decoration: const BoxDecoration(
+          color: Color(0xFF2A2A2A),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(icon, color: Colors.white, size: 20),
+      ),
+    );
+  }
+}
+
+class _NutriBadge extends StatelessWidget {
+  const _NutriBadge({
+    required this.label,
+    required this.value,
+    this.color = Colors.white,
+  });
+  final String label;
+  final String value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          value,
+          style: TextStyle(
+              color: color, fontSize: 16, fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 2),
+        Text(label,
+            style: const TextStyle(
+                color: Color(0xFF666666), fontSize: 11)),
+      ],
     );
   }
 }
