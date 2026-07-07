@@ -8,7 +8,7 @@ class MealLogDatabaseService {
   static final MealLogDatabaseService instance = MealLogDatabaseService._();
 
   static const _dbName = 'aahar_logs.db';
-  static const _dbVersion = 1;
+  static const _dbVersion = 2;
   static const _table = 'meal_logs';
 
   Database? _db;
@@ -34,9 +34,17 @@ class MealLogDatabaseService {
           carbs_g    REAL    NOT NULL,
           fat_g      REAL    NOT NULL,
           logged_at  INTEGER NOT NULL,
-          meal_type  TEXT    NOT NULL
+          meal_type  TEXT    NOT NULL,
+          iron_mg    REAL    NOT NULL DEFAULT 0.0
         )
       '''),
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 2) {
+          await db.execute(
+            'ALTER TABLE $_table ADD COLUMN iron_mg REAL NOT NULL DEFAULT 0.0',
+          );
+        }
+      },
     );
   }
 

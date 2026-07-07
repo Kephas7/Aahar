@@ -10,6 +10,7 @@ class FoodLogEntry {
     required this.fatG,
     required this.loggedAt,
     required this.mealType,
+    this.ironMg = 0.0,
   });
 
   final String id;
@@ -22,6 +23,8 @@ class FoodLogEntry {
   final double fatG;
   final DateTime loggedAt;
   final String mealType; // 'Breakfast', 'Lunch', 'Snack', 'Dinner'
+  // ironMg defaults to 0.0; will be non-zero once FoodItem is expanded with ironPer100g data
+  final double ironMg;
 
   Map<String, Object?> toJson() => {
     'id': id,
@@ -34,6 +37,7 @@ class FoodLogEntry {
     'fatG': fatG,
     'loggedAt': loggedAt.toIso8601String(),
     'mealType': mealType,
+    'ironMg': ironMg,
   };
 
   static FoodLogEntry fromJson(Map<String, dynamic> json) {
@@ -48,6 +52,7 @@ class FoodLogEntry {
       fatG: (json['fatG'] as num).toDouble(),
       loggedAt: DateTime.parse(json['loggedAt'] as String),
       mealType: json['mealType'] as String,
+      ironMg: (json['ironMg'] as num?)?.toDouble() ?? 0.0,
     );
   }
 
@@ -64,6 +69,7 @@ class FoodLogEntry {
         'fat_g': fatG,
         'logged_at': loggedAt.millisecondsSinceEpoch,
         'meal_type': mealType,
+        'iron_mg': ironMg,
       };
 
   static FoodLogEntry fromDbMap(Map<String, dynamic> map) => FoodLogEntry(
@@ -78,6 +84,7 @@ class FoodLogEntry {
         loggedAt:
             DateTime.fromMillisecondsSinceEpoch(map['logged_at'] as int),
         mealType: map['meal_type'] as String,
+        ironMg: (map['iron_mg'] as num?)?.toDouble() ?? 0.0,
       );
 
   String get timeLabel {
