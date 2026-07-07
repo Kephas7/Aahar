@@ -10,6 +10,7 @@ class UserProfile {
     required this.healthConditions,
     required this.foodPreference,
     required this.dailyBudgetNPR,
+    this.bio,
   });
 
   final String name;
@@ -22,6 +23,7 @@ class UserProfile {
   final List<String> healthConditions;
   final String foodPreference;
   final int dailyBudgetNPR;
+  final String? bio;
 
   Map<String, dynamic> toMap() {
     return <String, dynamic>{
@@ -35,6 +37,7 @@ class UserProfile {
       'healthConditions': healthConditions,
       'foodPreference': foodPreference,
       'dailyBudgetNPR': dailyBudgetNPR,
+      if (bio != null) 'bio': bio,
     };
   }
 
@@ -54,6 +57,7 @@ class UserProfile {
           <String>[],
       foodPreference: map['foodPreference'] as String? ?? 'none',
       dailyBudgetNPR: (map['dailyBudgetNPR'] as num?)?.toInt() ?? 0,
+      bio: map['bio'] as String?,
     );
   }
 
@@ -68,6 +72,7 @@ class UserProfile {
     List<String>? healthConditions,
     String? foodPreference,
     int? dailyBudgetNPR,
+    String? bio,
   }) {
     return UserProfile(
       name: name ?? this.name,
@@ -80,6 +85,7 @@ class UserProfile {
       healthConditions: healthConditions ?? this.healthConditions,
       foodPreference: foodPreference ?? this.foodPreference,
       dailyBudgetNPR: dailyBudgetNPR ?? this.dailyBudgetNPR,
+      bio: bio ?? this.bio,
     );
   }
 
