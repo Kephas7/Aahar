@@ -6,6 +6,7 @@ import '../features/dashboard/screens/dashboard_screen.dart';
 import '../features/log/models/detected_food.dart';
 import '../features/profile/screens/edit_profile_screen.dart';
 import '../features/profile/screens/profile_screen.dart';
+import '../features/progress/screens/progress_screen.dart';
 import '../features/log/models/food_log_entry.dart';
 import '../features/log/screens/adjust_portion_screen.dart';
 import '../features/log/screens/camera_screen.dart';
@@ -226,13 +227,6 @@ class PlanScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) =>
       const _PlaceholderScreen(title: 'Plan');
-}
-
-class ProgressScreen extends StatelessWidget {
-  const ProgressScreen({super.key});
-  @override
-  Widget build(BuildContext context) =>
-      const _PlaceholderScreen(title: 'Progress');
 }
 
 class _PlaceholderScreen extends StatelessWidget {
