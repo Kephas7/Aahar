@@ -4,6 +4,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../features/dashboard/screens/dashboard_screen.dart';
 import '../features/log/models/detected_food.dart';
+import '../features/plan/screens/plan_screen.dart';
+import '../features/plan/screens/plan_selector_screen.dart';
 import '../features/profile/screens/edit_profile_screen.dart';
 import '../features/profile/screens/profile_screen.dart';
 import '../features/progress/screens/progress_screen.dart';
@@ -102,10 +104,14 @@ final GoRouter appRouter = GoRouter(
       },
     ),
 
-    // ── Profile edit (full-screen, no bottom nav) ────────────────────────────
+    // ── Full-screen overlays (no bottom nav) ─────────────────────────────────
     GoRoute(
       path: '/home/profile/edit',
       builder: (context, state) => const EditProfileScreen(),
+    ),
+    GoRoute(
+      path: '/home/plan/select',
+      builder: (context, state) => const PlanSelectorScreen(),
     ),
 
     // ── Main app shell (4-tab nav) ───────────────────────────────────────────
@@ -220,33 +226,3 @@ class ScaffoldWithNavBar extends StatelessWidget {
   }
 }
 
-// ── Placeholder screens ───────────────────────────────────────────────────────
-
-class PlanScreen extends StatelessWidget {
-  const PlanScreen({super.key});
-  @override
-  Widget build(BuildContext context) =>
-      const _PlaceholderScreen(title: 'Plan');
-}
-
-class _PlaceholderScreen extends StatelessWidget {
-  const _PlaceholderScreen({required this.title});
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF0F0F0F),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF0F0F0F),
-        title: Text(title, style: const TextStyle(color: Colors.white)),
-      ),
-      body: Center(
-        child: Text(
-          title,
-          style: const TextStyle(color: Colors.white54, fontSize: 18),
-        ),
-      ),
-    );
-  }
-}
