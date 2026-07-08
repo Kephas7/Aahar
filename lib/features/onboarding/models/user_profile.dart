@@ -89,7 +89,9 @@ class UserProfile {
     );
   }
 
-  Map<String, double> calculateTargets() {
+  Map<String, double> calculateTargets({String? goalOverride}) {
+    final effectiveGoal = goalOverride ?? goal;
+
     final bmr = switch (gender.toLowerCase()) {
       'male' =>
         88.362 + (13.397 * weightKg) + (4.799 * heightCm) - (5.677 * age),
@@ -110,7 +112,7 @@ class UserProfile {
       _ => 1.2,
     };
 
-    final goalAdjustment = switch (goal.toLowerCase()) {
+    final goalAdjustment = switch (effectiveGoal.toLowerCase()) {
       'weight' => -300.0,
       'muscle' => 200.0,
       _ => 0.0,
@@ -119,7 +121,7 @@ class UserProfile {
     final kcal = (bmr * activityMultiplier) + goalAdjustment;
     final adjustedKcal = kcal < 1200 ? 1200.0 : kcal;
 
-    final proteinPerKg = switch (goal.toLowerCase()) {
+    final proteinPerKg = switch (effectiveGoal.toLowerCase()) {
       'muscle' => 1.6,
       'weight' => 1.2,
       'nutrition' || 'health' => 1.0,
